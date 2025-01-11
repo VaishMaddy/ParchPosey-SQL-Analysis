@@ -160,35 +160,65 @@ GROUP BY region_id, name
 ORDER BY avg_num_accounts ASC;
 
 -- SECTION 5: Industry Analysis and Channel Performance
--- Industry-Level Analysis
--- Technology Industry
+-- Overall Industry-Level Analysis
 SELECT
-    'Technology' as industry,
-    COUNT(DISTINCT a.name) as num_companies,
-    COUNT(*) as num_orders,
-    SUM(total) as total_qty,
-    ROUND(SUM(total_amt_usd)) as total_order_value,
-    ROUND(SUM(standard_qty)*100.0/SUM(total)) as overall_standard_pct,
-    ROUND(SUM(gloss_qty)*100.0/SUM(total)) as overall_gloss_pct,
-    ROUND(SUM(poster_qty)*100.0/SUM(total)) as overall_poster_pct
+    CASE 
+        WHEN a.name ILIKE ANY(ARRAY['%tech%', '%computer%', '%digital%', '%systems%', 
+                                    '%intel%', '%microsoft%', '%cisco%', '%electronics%']) THEN 'Technology'
+        WHEN a.name ILIKE ANY(ARRAY['%financial%', '%bank%', '%capital%', 
+                                    '%insurance%', '%invest%', '%credit%']) THEN 'Finance'
+        WHEN a.name ILIKE ANY(ARRAY['%health%', '%hospital%', '%medical%', 
+                                    '%pharma%', '%drug%', '%care%']) THEN 'Healthcare'
+        WHEN a.name ILIKE ANY(ARRAY['%energy%', '%power%', '%electric%', 
+                                    '%utility%', '%oil%', '%gas%']) THEN 'Energy'
+        WHEN a.name ILIKE ANY(ARRAY['%food%', '%beverage%', '%restaurant%', '%sysco%']) THEN 'Food & Beverage'
+        ELSE 'Other'
+    END AS industry,
+    COUNT(DISTINCT a.name) AS num_companies,
+    COUNT(*) AS num_orders,
+    SUM(o.total) AS total_qty,
+    ROUND(SUM(o.total_amt_usd), 2) AS total_order_value,
+    ROUND(SUM(o.standard_qty) * 100.0 / NULLIF(SUM(o.total), 0), 1) AS overall_standard_pct,
+    ROUND(SUM(o.gloss_qty) * 100.0 / NULLIF(SUM(o.total), 0), 1) AS overall_gloss_pct,
+    ROUND(SUM(o.poster_qty) * 100.0 / NULLIF(SUM(o.total), 0), 1) AS overall_poster_pct
 FROM accounts a
 JOIN orders o ON a.id = o.account_id
-WHERE (a.name ILIKE '%tech%'
-    OR a.name ILIKE '%computer%'
-    OR a.name ILIKE '%digital%'
-    OR a.name ILIKE '%systems%'
-    OR a.name ILIKE '%intel%'
-    OR a.name ILIKE '%microsoft%'
-    OR a.name ILIKE '%cisco%'
-    OR a.name ILIKE '%electronics%')
-    AND (o.total > 0)
-GROUP BY industry;
+WHERE o.total > 0
+GROUP BY industry
+ORDER BY total_order_value DESC;
+
+-- Company-Level Analysis
+SELECT
+    CASE 
+        WHEN a.name ILIKE ANY(ARRAY['%tech%', '%computer%', '%digital%', '%systems%', 
+                                    '%intel%', '%microsoft%', '%cisco%', '%electronics%']) THEN 'Technology'
+        WHEN a.name ILIKE ANY(ARRAY['%financial%', '%bank%', '%capital%', 
+                                    '%insurance%', '%invest%', '%credit%']) THEN 'Finance'
+        WHEN a.name ILIKE ANY(ARRAY['%health%', '%hospital%', '%medical%', 
+                                    '%pharma%', '%drug%', '%care%']) THEN 'Healthcare'
+        WHEN a.name ILIKE ANY(ARRAY['%energy%', '%power%', '%electric%', 
+                                    '%utility%', '%oil%', '%gas%']) THEN 'Energy'
+        WHEN a.name ILIKE ANY(ARRAY['%food%', '%beverage%', '%restaurant%', '%sysco%']) THEN 'Food & Beverage'
+        ELSE 'Other'
+    END AS industry,
+    a.name AS company_name,
+    COUNT(*) AS num_orders,
+    SUM(o.total) AS total_qty,
+    ROUND(SUM(o.total_amt_usd), 2) AS total_order_value,
+    ROUND(SUM(o.standard_qty) * 100.0 / NULLIF(SUM(o.total), 0), 1) AS standard_pct,
+    ROUND(SUM(o.gloss_qty) * 100.0 / NULLIF(SUM(o.total), 0), 1) AS gloss_pct,
+    ROUND(SUM(o.poster_qty) * 100.0 / NULLIF(SUM(o.total), 0), 1) AS poster_pct
+FROM accounts a
+JOIN orders o ON a.id = o.account_id
+WHERE o.total > 0
+GROUP BY industry, company_name
+ORDER BY industry, total_order_value DESC;
 
 -- Channel Performance by Region
 WITH region_totals AS (
-    SELECT
-        r.name region_name,
-        COUNT(*) total_events
+    SELECT 
+        r.name AS region_name,
+        COUNT(*) AS total_events
     FROM web_events we
     JOIN accounts a ON we.account_id = a.id
     JOIN sales_reps sr ON a.sales_rep_id = sr.id
@@ -196,14 +226,14 @@ WITH region_totals AS (
     GROUP BY r.name
 )
 SELECT
-    r.name region_name,
-    we.channel channel_name,
-    COUNT(we.channel) number_used,
-    ROUND(100.0 * COUNT(we.channel) / rt.total_events, 1) as channel_pct
+    r.name AS region_name,
+    we.channel AS channel_name,
+    COUNT(we.channel) AS number_used,
+    ROUND(100.0 * COUNT(we.channel) / rt.total_events, 1) AS channel_pct
 FROM web_events we
 JOIN accounts a ON we.account_id = a.id
 JOIN sales_reps sr ON a.sales_rep_id = sr.id
 JOIN region r ON sr.region_id = r.id
 JOIN region_totals rt ON r.name = rt.region_name
 GROUP BY we.channel, r.name, rt.total_events
-ORDER BY region_name, number_used;
+ORDER BY region_name, number_used DESC;
