@@ -72,4 +72,5 @@ Analyze Parch & Posey's business data to optimize:
 ```sql
 COUNT(), SUM(), AVG(), ROUND(), NULLIF()
 GROUP BY, ORDER BY, WITH clauses
-CASE WHEN statements, Date/time functions
+CASE WHEN statements
+Date/time functions
